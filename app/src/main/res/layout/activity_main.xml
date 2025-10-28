@@ -1,34 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/rootLayout"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp">
+    android:orientation="vertical">
 
-    <!-- Message Input -->
-    <EditText
-        android:id="@+id/messageInput"
+    <!-- Header with Dashboard Button -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Say something..."
-        android:layout_alignParentBottom="true"
-        android:layout_toStartOf="@+id/sendButton"
-        android:layout_marginEnd="8dp"/>
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:gravity="center_vertical"
+        android:background="#6200EE">
 
-    <!-- Send Button -->
-    <Button
-        android:id="@+id/sendButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Send"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentEnd="true"/>
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Friend Chat"
+            android:textColor="@android:color/white"
+            android:textSize="20sp"
+            android:textStyle="bold" />
 
-    <!-- Messages RecyclerView -->
+        <Button
+            android:id="@+id/dashboardBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📊 Dashboard"
+            android:textColor="@android:color/white"
+            android:backgroundTint="@android:color/transparent"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+    <!-- Your existing message list -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/messageList"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_above="@id/messageInput"
-        android:layout_marginBottom="8dp"/>
-</RelativeLayout>
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- Your existing input layout -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:background="@android:color/white">
+
+        <EditText
+            android:id="@+id/messageInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Type your message..."
+            android:maxLines="3" />
+
+        <Button
+            android:id="@+id/sendButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Send" />
+
+    </LinearLayout>
+
+</LinearLayout>

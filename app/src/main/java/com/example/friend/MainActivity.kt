@@ -1,7 +1,10 @@
-// MainActivity.kt
+// Update MainActivity.kt
 package com.example.friend
 
+import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Button
 import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
@@ -16,6 +19,7 @@ class MainActivity : AppCompatActivity() {
     private val messages = mutableListOf<ChatMessage>()
     private lateinit var classifier: TextClassifierHelper
     private lateinit var newsCollector: NewsDataCollector
+    private lateinit var dashboardBtn: Button // Declare the dashboard button
 
     private val coroutineScope = CoroutineScope(Dispatchers.Main)
 
@@ -26,6 +30,7 @@ class MainActivity : AppCompatActivity() {
         val messageList = findViewById<RecyclerView>(R.id.messageList)
         val input = findViewById<EditText>(R.id.messageInput)
         val sendBtn = findViewById<Button>(R.id.sendButton)
+        dashboardBtn = findViewById<Button>(R.id.dashboardBtn) // Initialize the dashboard button
 
         chatAdapter = ChatAdapter(messages)
         messageList.adapter = chatAdapter
@@ -40,30 +45,45 @@ class MainActivity : AppCompatActivity() {
 
         newsCollector = NewsDataCollector(this)
 
+        // Set up dashboard button click listener
+        dashboardBtn.setOnClickListener {
+            val intent = Intent(this, DashboardActivity::class.java)
+            startActivity(intent)
+        }
+
         sendBtn.setOnClickListener {
             val text = input.text.toString().trim()
             if (text.isNotBlank()) {
                 addUserMessage(text)
                 input.setText("")
 
-                // Enhanced topic detection
                 when {
                     isTopicAnalysisRequest(text) -> {
                         val topic = extractTopic(text)
                         analyzeTopicSentiment(topic)
                     }
                     else -> {
-                        // Regular message classification
                         classifier.classify(text)
                     }
                 }
             }
         }
 
+        // Check for auto-query from dashboard
+        val autoQuery = intent.getStringExtra("AUTO_QUERY")
+        if (!autoQuery.isNullOrBlank()) {
+            input.setText(autoQuery)
+            // Auto-send after a short delay
+            Handler(Looper.getMainLooper()).postDelayed({
+                sendBtn.performClick()
+            }, 500)
+        }
+
         // Welcome message
         addBotMessage("🤖 Hello! I can:\n• Analyze your personal mood\n• Analyze public sentiment on any topic\n\nTry: 'news about AI' or 'how do people feel about climate change?'")
     }
 
+    // ... rest of your existing methods (isTopicAnalysisRequest, extractTopic, analyzeTopicSentiment, etc.)
     private fun isTopicAnalysisRequest(text: String): Boolean {
         val keywords = listOf(
             "news about", "sentiment of", "how people feel about",
@@ -92,81 +112,47 @@ class MainActivity : AppCompatActivity() {
                 return match.groupValues[1].trim()
             }
         }
-        return text // fallback to entire text
+        return text
     }
 
     private fun analyzeTopicSentiment(topic: String) {
         addBotMessage("🔍 Searching the web for '$topic'...")
-
         coroutineScope.launch {
             try {
                 val newsItems = newsCollector.fetchNewsAboutTopic(topic)
-
                 if (newsItems.isEmpty()) {
-                    addBotMessage("❌ Couldn't find enough information about '$topic'. Try a more popular topic or different keywords.")
+                    addBotMessage("❌ Couldn't find enough information about '$topic'. Try a more popular topic.")
                     return@launch
                 }
-
-                addBotMessage("📊 Found ${newsItems.size} sources. Analyzing sentiment patterns...")
-
+                addBotMessage("📊 Found ${newsItems.size} sources. Analyzing sentiment...")
                 classifier.analyzeTopicSentiment(newsItems) { result ->
                     runOnUiThread {
                         displayTopicAnalysis(topic, result)
                     }
                 }
-
             } catch (e: Exception) {
-                addBotMessage("❌ Error analyzing topic. Please check your internet connection and try again.")
-                e.printStackTrace()
+                addBotMessage("❌ Error analyzing topic. Please check your internet connection.")
             }
         }
     }
 
     private fun displayTopicAnalysis(topic: String, result: TopicAnalysisResult) {
         if (result.averagePositive == -1f || result.itemsAnalyzed == 0) {
-            addBotMessage("❌ Not enough data to analyze '$topic'. Try a different topic.")
+            addBotMessage("❌ Not enough data to analyze '$topic'.")
             return
         }
 
         val (sentiment, emoji) = getOverallSentiment(result.averagePositive, result.averageNegative)
-        val confidenceLevel = when {
-            result.averageConfidence > 0.7 -> "high"
-            result.averageConfidence > 0.5 -> "moderate"
-            else -> "low"
-        }
-
         val analysisMessage = """
             📈 **Public Sentiment Analysis: '$topic'**
             
             🌡️ **Overall Mood**: $sentiment $emoji
-            ✅ **Positive Score**: ${"%.1f".format(result.averagePositive * 100)}%
-            ❌ **Negative Score**: ${"%.1f".format(result.averageNegative * 100)}%
-            📊 **Sources Analyzed**: ${result.itemsAnalyzed}
-            🎯 **Confidence**: $confidenceLevel confidence
-            
-            ${getTopicInsights(result)}
+            ✅ **Positive**: ${"%.1f".format(result.averagePositive * 100)}%
+            ❌ **Negative**: ${"%.1f".format(result.averageNegative * 100)}%
+            📊 **Sources**: ${result.itemsAnalyzed}
         """.trimIndent()
 
         addBotMessage(analysisMessage)
-
-        // Show top examples if we have good confidence
-        if (result.averageConfidence > 0.4) {
-            if (result.topPositive.isNotEmpty()) {
-                addBotMessage("**👍 Most Positive Views:**")
-                result.topPositive.take(2).forEach { item ->
-                    addBotMessage("• \"${item.preview}\"")
-                }
-            }
-
-            if (result.topNegative.isNotEmpty()) {
-                addBotMessage("**👎 Most Negative Views:**")
-                result.topNegative.take(2).forEach { item ->
-                    addBotMessage("• \"${item.preview}\"")
-                }
-            }
-        }
-
-        addBotMessage("💡 *Analysis based on recent news and public discussions*")
     }
 
     private fun getOverallSentiment(pos: Float, neg: Float): Pair<String, String> {
@@ -180,18 +166,6 @@ class MainActivity : AppCompatActivity() {
             pos > neg -> Pair("Mixed but Leaning Positive", "🤔")
             neg > pos -> Pair("Mixed but Leaning Negative", "🤔")
             else -> Pair("Neutral/Mixed", "😐")
-        }
-    }
-
-    private fun getTopicInsights(result: TopicAnalysisResult): String {
-        return when {
-            result.averagePositive > 0.7 -> "Public discourse is overwhelmingly positive! This topic is receiving favorable coverage."
-            result.averagePositive > 0.6 -> "Generally positive sentiment. The topic is well-received in public discussions."
-            result.averageNegative > 0.7 -> "Strong negative sentiment dominates. There are significant concerns being raised."
-            result.averageNegative > 0.6 -> "Generally negative coverage. Critical viewpoints are common in discussions."
-            result.averagePositive > result.averageNegative -> "Slightly positive overall, with mixed opinions."
-            result.averageNegative > result.averagePositive -> "Slightly negative overall, with mixed opinions."
-            else -> "Very mixed opinions with no clear consensus emerging."
         }
     }
 
